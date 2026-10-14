@@ -16,10 +16,12 @@
         android:orientation="vertical">
 
         <TextView
+            android:id="@+id/statusTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
-            android:text="Tekan" android:layout_gravity="center_horizontal"
+            android:text="Tekan"
+            android:layout_gravity="center_horizontal"
             android:textColor="#0F172A"
             android:textSize="14sp"
             android:textStyle="bold"/>
@@ -27,7 +29,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="3dp"
-            android:id="@+id/button"
+            android:id="@+id/btnStart"
             android:text="Mulai Lacak Aktivitas"/>
     </LinearLayout>
 </ScrollView>

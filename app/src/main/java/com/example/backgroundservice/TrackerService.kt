@@ -16,45 +16,38 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 import kotlin.math.abs
 
 class TrackerService : Service(), SensorEventListener {
-
-    override fun onBind(intent: Intent): IBinder {
-        TODO("Return the communication channel to the service.")
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        TODO("Not yet implemented")
-    }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-        TODO("Not yet implemented")
-    }
 
     private lateinit var sensorManager: SensorManager
     private var accelerometer: Sensor? = null
 
     private val NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING = "tracker_service_running"
-    private val NOTIFICATION_ID_SERVICE_RUNNING = 1
     private val NOTIFICATION_CHANNEL_ID_JUMP_DETECTED = "tracker_jump_detected"
-    private val NOTIFICATION_ID_JUMP_STOPPED = 2
+    private val NOTIFICATION_ID_SERVICE_RUNNING = 1
+    private val NOTIFICATION_ID_JUMP_DETECTED = 2
+
+    override fun onBind(intent: Intent?): IBinder? {
+        return null
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+    }
 
     override fun onCreate() {
         super.onCreate()
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         createNotificationChannels()
-        Log.d("TrackerService", "onCreate")
+        Log.d("TrackerService", "Service onCreate")
     }
 
-    private fun createNotificationChannels(){
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+    private fun createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
 
-            val serviceCannel = NotificationChannel(
+            val serviceChannel = NotificationChannel(
                 NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING,
                 "Service Running Channel",
                 NotificationManager.IMPORTANCE_LOW
@@ -66,11 +59,11 @@ class TrackerService : Service(), SensorEventListener {
                 NotificationManager.IMPORTANCE_HIGH
             )
 
-            manager.createNotificationChannel(serviceCannel)
-            manager.createNotificationChannel(jumpChannel
-            )
+            manager?.createNotificationChannel(serviceChannel)
+            manager?.createNotificationChannel(jumpChannel)
         }
     }
+
     private fun startJumpDetection() {
         accelerometer?.also {
             sensorManager.registerListener(
@@ -80,18 +73,17 @@ class TrackerService : Service(), SensorEventListener {
             )
         }
     }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("TrackerService", "Service onStartCommand")
-
         startForeground(
             NOTIFICATION_ID_SERVICE_RUNNING,
             buildServiceRunningNotification()
         )
         startJumpDetection()
         return START_STICKY
-
-
     }
+
     private fun buildServiceRunningNotification(): Notification {
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -99,7 +91,7 @@ class TrackerService : Service(), SensorEventListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        return Notification.Builder(this, NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING)
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING)
             .setContentTitle("Pelacak Aktivitas Latar")
             .setContentText("Aplikasi Tracker Services sedang berjalan...")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -108,21 +100,22 @@ class TrackerService : Service(), SensorEventListener {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
+
     override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == sensor.TYPE_ACCELEROMETER) {
+        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
             val y = event.values[1]
             val jumpThreshold = 15.0
 
             if (abs(y) > jumpThreshold) {
-                Log.d("TrackerService", "LoMpAtAn Terdeteksi! y: $y")
+                Log.d("TrackerService", "LOMPATAN Terdeteksi! y: $y")
 
                 sensorManager.unregisterListener(this)
-
                 showJumpNotification()
                 stopSelf()
             }
         }
     }
+
     private fun showJumpNotification() {
         val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
             action = MainActivity.ACTION_SERVICE_STOPPED_JUMP
@@ -134,23 +127,28 @@ class TrackerService : Service(), SensorEventListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val jumpNotification = Notification.Builder(this, NOTIFICATION_CHANNEL_ID_JUMP_DETECTED)
-            .setContentTitle("LoMpAtAn Terdeteksi!")
-            .setContentText("Service berhenti, ketuk untk buka aplikasi!")
+        val jumpNotification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID_JUMP_DETECTED)
+            .setContentTitle("Lompatan Terdeteksi")
+            .setContentText("Service Berhenti. Ketuk untuk membuka aplikasi.")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentIntent(pendingMainActivityIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
-        try{
+        try {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID_JUMP_DETECTED, jumpNotification)
-        } catch (e: SecurityException){
+        } catch (e: SecurityException) {
             Log.e(
-                "TraclerService",
-                "Gagal menampilkan notifikasi karena permission post_notification tidak aktif: ${e.message}"
+                "TrackerService",
+                "Gagal memunculkan notifikasi karena permission POST_NOTIFICATIONS tidak aktif: ${e.message}"
             )
         }
     }
-}
 
+    override fun onDestroy() {
+        super.onDestroy()
+        sensorManager.unregisterListener(this)
+        Log.d("TrackerService", "Service onDestroy")
+    }
+}

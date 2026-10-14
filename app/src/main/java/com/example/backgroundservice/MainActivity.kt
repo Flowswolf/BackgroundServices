@@ -1,7 +1,5 @@
-package com.example.backgroundservice
+package com.example.backgroundservice // Sesuaikan nama package kamu
 
-import android.Manifest
-import android.app.ComponentCaller
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -16,34 +14,38 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var statusTextView: TextView
+    private lateinit var btnStart: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        var btnStart = findViewById<Button>(R.id.button)
+
+        statusTextView = findViewById(R.id.statusTextView)
+        btnStart = findViewById(R.id.btnStart)
+
         btnStart.setOnClickListener {
             if (hasAllPermissions()) {
                 startTrackerService()
             } else {
                 ActivityCompat.requestPermissions(
                     this,
-                    permissionToRequest,
+                    permissionsToRequest,
                     REQUEST_CODE_PERMISSIONS
                 )
             }
         }
 
         handleIntent(intent)
-
     }
-
-    private lateinit var statusTextView: TextView
-    private lateinit var button: Button
 
     private fun startTrackerService() {
         val serviceIntent = Intent(this, TrackerService::class.java)
@@ -52,30 +54,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hasAllPermissions(): Boolean {
-        return permissionToRequest.all {
+        return permissionsToRequest.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
-    }
-
-    companion object {
-        const val ACTION_SERVICE_STOPPED_JUMP =
-            "com.example.backgroundservice.ACTION_SERVICE_STOPPED_JUMP"
-        const val REQUEST_CODE_PERMISSIONS = 101
-    }
-
-    private val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        arrayOf(
-            Manifest.permission.POST_NOTIFICATIONS,
-            Manifest.permission.ACTIVITY_RECOGNITION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-    } else {
-        arrayOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACTIVITY_RECOGNITION
-        )
     }
 
     override fun onRequestPermissionsResult(
@@ -94,16 +75,11 @@ class MainActivity : AppCompatActivity() {
             }
             if (allPermissionsGranted) {
                 val serviceIntent = Intent(this, TrackerService::class.java)
-                startForegroundService(serviceIntent)
-                finish()
+                ContextCompat.startForegroundService(this, serviceIntent)
+                statusTextView.text = "Background service sedang berjalan..."
             } else {
-                statusTextView.text = "Izin ditolak, service tidak dapat dijalankan"
+                statusTextView.text = "Izin ditolak, service tidak dapat dijalankan."
             }
-        }
-    }
-    private fun handleIntent(intent: Intent?) {
-        if (intent?.action == ACTION_SERVICE_STOPPED_JUMP) {
-            statusTextView.text = "Background service telah berhenti karena anda LONCAT"
         }
     }
 
@@ -111,5 +87,32 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == ACTION_SERVICE_STOPPED_JUMP) {
+            statusTextView.text = "Background services sudah berhenti karena Anda melompat"
+        }
+    }
+
+    companion object {
+        const val ACTION_SERVICE_STOPPED_JUMP =
+            "com.example.backgroundservice.ACTION_SERVICE_STOPPED_JUMP" // Sesuaikan nama package kamu
+        const val REQUEST_CODE_PERMISSIONS = 101
+    }
+
+    private val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(
+            android.Manifest.permission.ACTIVITY_RECOGNITION,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+    } else {
+        arrayOf(
+            android.Manifest.permission.ACTIVITY_RECOGNITION,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        )
     }
 }
