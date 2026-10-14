@@ -31,5 +31,11 @@
             android:layout_marginTop="3dp"
             android:id="@+id/btnStart"
             android:text="Mulai Lacak Aktivitas"/>
+        <Button
+            android:id="@+id/btnLatihan"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Mulai Latihan LOMPAT" />
     </LinearLayout>
 </ScrollView>

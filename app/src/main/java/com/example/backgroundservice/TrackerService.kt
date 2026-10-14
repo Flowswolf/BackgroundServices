@@ -28,12 +28,17 @@ class TrackerService : Service(), SensorEventListener {
     private val NOTIFICATION_ID_SERVICE_RUNNING = 1
     private val NOTIFICATION_ID_JUMP_DETECTED = 2
 
+    // --- VARIABEL BARU UNTUK LATIHAN ---
+    private var isLatihanMode = false
+    private var jumpCount = 0
+    private var lastJumpTime: Long = 0
+    private val JUMP_COOLDOWN_MS = 1000L // Cooldown 1 detik antar lompatan
+
     override fun onBind(intent: Intent?): IBinder? {
         return null
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     override fun onCreate() {
         super.onCreate()
@@ -76,6 +81,13 @@ class TrackerService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("TrackerService", "Service onStartCommand")
+
+        // Cek apakah dipanggil dari Mode Latihan
+        isLatihanMode = intent?.getBooleanExtra(EXTRA_IS_LATIHAN, false) ?: false
+        if (isLatihanMode) {
+            jumpCount = 0 // Reset hitungan
+        }
+
         startForeground(
             NOTIFICATION_ID_SERVICE_RUNNING,
             buildServiceRunningNotification()
@@ -91,9 +103,12 @@ class TrackerService : Service(), SensorEventListener {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val title = if (isLatihanMode) "Pelacak Latihan Latar" else "Pelacak Aktivitas Latar"
+        val content = if (isLatihanMode) "Latihan sedang berjalan, silakan melompat..." else "Aplikasi Tracker Services sedang berjalan..."
+
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID_SERVICE_RUNNING)
-            .setContentTitle("Pelacak Aktivitas Latar")
-            .setContentText("Aplikasi Tracker Services sedang berjalan...")
+            .setContentTitle(title)
+            .setContentText(content)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -104,14 +119,32 @@ class TrackerService : Service(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
             val y = event.values[1]
-            val jumpThreshold = 15.0
+            val jumpThreshold = 12.0 // Threshold sesuai instruksi (12)
+            val currentTime = System.currentTimeMillis()
 
             if (abs(y) > jumpThreshold) {
-                Log.d("TrackerService", "LOMPATAN Terdeteksi! y: $y")
+                // Mencegah 1 lompatan terhitung berkali-kali dalam rentang milidetik
+                if (currentTime - lastJumpTime > JUMP_COOLDOWN_MS) {
+                    lastJumpTime = currentTime
 
-                sensorManager.unregisterListener(this)
-                showJumpNotification()
-                stopSelf()
+                    if (isLatihanMode) {
+                        jumpCount++
+                        Log.d("TrackerService", "Lompatan Latihan ke-$jumpCount terdeteksi! y: $y")
+
+                        // Latihan selesai jika sudah lebih dari 2 kali (mencapai 3 lompatan)
+                        if (jumpCount > 2) {
+                            sensorManager.unregisterListener(this)
+                            showLatihanSelesaiNotification(jumpCount)
+                            stopSelf()
+                        }
+                    } else {
+                        // Fitur awal (1x lompat langsung selesai)
+                        Log.d("TrackerService", "LOMPATAN Terdeteksi! y: $y")
+                        sensorManager.unregisterListener(this)
+                        showJumpNotification()
+                        stopSelf()
+                    }
+                }
             }
         }
     }
@@ -139,10 +172,34 @@ class TrackerService : Service(), SensorEventListener {
         try {
             NotificationManagerCompat.from(this).notify(NOTIFICATION_ID_JUMP_DETECTED, jumpNotification)
         } catch (e: SecurityException) {
-            Log.e(
-                "TrackerService",
-                "Gagal memunculkan notifikasi karena permission POST_NOTIFICATIONS tidak aktif: ${e.message}"
-            )
+            Log.e("TrackerService", "Gagal memunculkan notifikasi: ${e.message}")
+        }
+    }
+    private fun showLatihanSelesaiNotification(totalJumps: Int) {
+        val mainActivityIntent = Intent(this, MainActivity::class.java).apply {
+            action = MainActivity.ACTION_LATIHAN_SELESAI
+            putExtra(MainActivity.EXTRA_JUMP_COUNT, totalJumps)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        val pendingMainActivityIntent = PendingIntent.getActivity(
+            this, 2, mainActivityIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID_JUMP_DETECTED)
+            .setContentTitle("Latihan Selesai! 🎉")
+            .setContentText("Selamat! Anda menyelesaikan $totalJumps lompatan. Ketuk untuk lihat detail.")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentIntent(pendingMainActivityIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        try {
+            NotificationManagerCompat.from(this).notify(NOTIFICATION_ID_JUMP_DETECTED, notification)
+        } catch (e: SecurityException) {
+            Log.e("TrackerService", "Gagal memunculkan notifikasi: ${e.message}")
         }
     }
 
@@ -150,5 +207,9 @@ class TrackerService : Service(), SensorEventListener {
         super.onDestroy()
         sensorManager.unregisterListener(this)
         Log.d("TrackerService", "Service onDestroy")
+    }
+
+    companion object {
+        const val EXTRA_IS_LATIHAN = "extra_is_latihan"
     }
 }
